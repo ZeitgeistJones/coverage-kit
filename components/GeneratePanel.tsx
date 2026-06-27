@@ -17,9 +17,10 @@ type Props = {
   }) => void
   generating: boolean
   isConnected: boolean
+  genCount: number
 }
 
-export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGenerate, generating, isConnected }: Props) {
+export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGenerate, generating, isConnected, genCount }: Props) {
   const [styleMode, setStyleMode] = useState<'preset' | 'custom'>('preset')
   const [selectedStyle, setSelectedStyle] = useState('chill bro')
   const [customStyle, setCustomStyle] = useState('')
@@ -230,7 +231,7 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
           transition: 'opacity 0.15s',
         }}
       >
-        {!isConnected ? 'connect wallet to generate' : generating ? 'generating...' : '⚡ generate'}
+        {!isConnected ? 'connect wallet to generate' : generating ? 'generating...' : genCount === 0 ? '⚡ generate (free)' : '⚡ generate'}
       </button>
     </div>
   )
