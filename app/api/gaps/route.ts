@@ -4,15 +4,24 @@ import Anthropic from '@anthropic-ai/sdk'
 const anthropic = new Anthropic()
 
 function clean(str: string): string {
-  return (str || '').replace(/[\u{D800}-\u{DFFF}]/gu, '').replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '')
+  return (str || '')
+    .replace(/[\u{D800}-\u{DFFF}]/gu, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+    .replace(/[\u{10000}-\u{10FFFF}]/gu, '')
+    .slice(0, 300)
 }
 
 export async function POST(req: Request) {
   try {
     const { repos, videos } = await req.json()
 
-    const slimRepos = repos.map((r: any) => `- ${clean(r.name)} (pushed: ${clean(r.pushedAt)})`).join('\n')
-    const slimVideos = videos.map((v: any) => `- "${clean(v.title)}" | ${clean(v.publishedAt)} | ${clean((v.description || '').slice(0, 150))}`).join('\n')
+    const slimRepos = repos
+      .map((r: any) => `- ${clean(r.name)} (pushed: ${clean(r.pushedAt)})`)
+      .join('\n')
+
+    const slimVideos = videos
+      .map((v: any) => `- "${clean(v.title)}" | ${clean(v.publishedAt)} | ${clean((v.description || '').slice(0, 100))}`)
+      .join('\n')
 
     const prompt = `Analyze coverage gaps between a GitHub org's repos and a YouTube channel's videos.
 
