@@ -240,10 +240,10 @@ export default function Home() {
           <div style={{ marginBottom: 40 }}>
             <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>What is NotebookLM?</h2>
             <p style={{ color: 'var(--text-muted)', lineHeight: 1.8, marginBottom: 12 }}>
-              <a href="https://notebooklm.google.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>NotebookLM</a> is a free AI research tool from Google. You paste in source documents and it generates audio overviews — essentially a podcast-style conversation between two AI hosts discussing your content. Many YouTube creators use it to turn written content into a narrated audio track for their videos.
+              <a href="https://notebooklm.google.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>NotebookLM</a> is a free AI research tool from Google. You paste in source documents and it generates audio overviews — a podcast-style conversation between two AI hosts discussing your content. Many YouTube creators use it to turn written content into a narrated audio track for their videos.
             </p>
             <p style={{ color: 'var(--text-muted)', lineHeight: 1.8 }}>
-              The NotebookLM document CoverageKit generates is formatted specifically to produce a great audio overview — flowing narrative, right tone, no chapter markers that would make it feel like a lecture.
+              The NotebookLM document CoverageKit generates is formatted specifically to produce a great audio overview — flowing narrative, right tone, no chapter markers.
             </p>
           </div>
 
@@ -310,6 +310,10 @@ export default function Home() {
         </div>
       </header>
 
+      <div className="free-banner">
+        First scan and first generation are free — no payment needed to get started. $0.10 USDC on Base per action after that.
+      </div>
+
       <div className="layout">
         <aside className="sidebar">
           <div className="panel">
@@ -326,7 +330,7 @@ export default function Home() {
                   disabled={scanning || !isConnected}
                   className="btn"
                 >
-                  {!isConnected ? 'connect wallet' : scanning ? 'scanning...' : 'scan'}
+                  {!isConnected ? 'connect wallet' : scanning ? 'scanning...' : scanCount === 0 ? 'scan (free)' : 'scan'}
                 </button>
               )}
             </div>
@@ -359,6 +363,7 @@ export default function Home() {
             onGenerate={generate}
             generating={generating}
             isConnected={isConnected}
+            genCount={genCount}
           />
           {output && (
             <OutputPanel
