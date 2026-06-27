@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAccount, useWalletClient } from 'wagmi'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { parseUnits } from 'viem'
 import GapReport from '@/components/GapReport'
 import GeneratePanel from '@/components/GeneratePanel'
 import OutputPanel from '@/components/OutputPanel'
@@ -14,9 +17,16 @@ export type GapEntry = {
   priority: 'high' | 'medium' | 'low'
 }
 
+const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+const PAYMENT_RECEIVER = process.env.NEXT_PUBLIC_WALLET_ADDRESS || ''
+const PRICE = parseUnits('0.10', 6)
+
 type Page = 'tool' | 'about'
 
 export default function Home() {
+  const { address, isConnected } = useAccount()
+  const { data: walletClient } = useWalletClient()
+
   const [page, setPage] = useState<Page>('tool')
   const [org, setOrg] = useState('')
   const [channelId, setChannelId] = useState('')
@@ -31,8 +41,10 @@ export default function Home() {
     thumbnailPrompt?: string
   } | null>(null)
   const [error, setError] = useState('')
+  const [scanCount, setScanCount] = useState(0)
+  const [genCount, setGenCount] = useState(0)
+  const [paying, setPaying] = useState(false)
 
-  // load saved config from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('coveragekit-config')
     if (saved) {
@@ -42,11 +54,24 @@ export default function Home() {
     }
   }, [])
 
-  // load cached gaps when org/channelId are set
   useEffect(() => {
     if (!org || !channelId) return
     loadCachedGaps()
   }, [org, channelId])
+
+  useEffect(() => {
+    if (!address) return
+    fetchUsage()
+  }, [address])
+
+  async function fetchUsage() {
+    try {
+      const res = await fetch(`/api/payment?wallet=${address}`)
+      const data = await res.json()
+      setScanCount(data.scanCount || 0)
+      setGenCount(data.genCount || 0)
+    } catch {}
+  }
 
   async function loadCachedGaps() {
     try {
@@ -65,11 +90,41 @@ export default function Home() {
     localStorage.setItem('coveragekit-config', JSON.stringify({ org: newOrg, channelId: newChannelId }))
   }
 
-  async function runScan(force = false) {
-    if (!org || !channelId) {
-      setError('Set your GitHub org and YouTube channel ID first')
-      return
+  async function payForAction(): Promise<boolean> {
+    if (!walletClient || !address) return false
+    setPaying(true)
+    try {
+      const { parseAbi } = await import('viem')
+      const abi = parseAbi(['function transfer(address to, uint256 amount) returns (bool)'])
+      const hash = await walletClient.writeContract({
+        address: USDC_BASE as `0x${string}`,
+        abi,
+        functionName: 'transfer',
+        args: [PAYMENT_RECEIVER as `0x${string}`, PRICE],
+      })
+      await fetch('/api/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet: address, txHash: hash }),
+      })
+      await fetchUsage()
+      return true
+    } catch (e: any) {
+      setError('Payment failed: ' + e.message)
+      return false
+    } finally {
+      setPaying(false)
     }
+  }
+
+  async function runScan(force = false) {
+    if (!org || !channelId) { setError('Set your config first'); return }
+
+    if (scanCount >= 1) {
+      const paid = await payForAction()
+      if (!paid) return
+    }
+
     setScanning(true)
     setError('')
     try {
@@ -79,7 +134,6 @@ export default function Home() {
       ])
       const reposData = await reposRes.json()
       const videosData = await videosRes.json()
-
       if (!reposData.repos) throw new Error('Repos error: ' + JSON.stringify(reposData))
       if (!videosData.videos) throw new Error('Videos error: ' + JSON.stringify(videosData))
 
@@ -94,8 +148,8 @@ export default function Home() {
       setGaps(gapsData.gaps)
       const now = new Date().toISOString()
       setScannedAt(now)
+      setScanCount(c => c + 1)
 
-      // save to cache
       await fetch('/api/gap-cache', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -115,6 +169,11 @@ export default function Home() {
     extraContext: string
     includeThumbnail: boolean
   }) {
+    if (genCount >= 1) {
+      const paid = await payForAction()
+      if (!paid) return
+    }
+
     setGenerating(true)
     setError('')
     setOutput(null)
@@ -131,10 +190,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          packed,
-          repoName: opts.repoName,
-          repoUrl,
-          org,
+          packed, repoName: opts.repoName, repoUrl, org,
           styleBible: opts.styleBible,
           disclaimers: opts.disclaimers,
           previousVideoDescription: opts.previousVideoDescription,
@@ -146,10 +202,36 @@ export default function Home() {
       if (genErr) throw new Error(genErr)
 
       setOutput({ notebookDoc, youtubeDesc, thumbnailPrompt })
+      setGenCount(c => c + 1)
     } catch (e: any) {
       setError(e.message || 'Generation failed')
     }
     setGenerating(false)
+  }
+
+  if (!isConnected) {
+    return (
+      <main className="main">
+        <header className="header">
+          <div className="header-inner">
+            <div className="header-left">
+              <span className="logo">📹 CoverageKit</span>
+              <span className="tagline">gap analysis → notebooklm doc → youtube description</span>
+            </div>
+          </div>
+        </header>
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40,
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>Connect your wallet to get started</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+            First scan and generation are free. $0.10 USDC per action after that.
+          </div>
+          <ConnectButton />
+        </div>
+      </main>
+    )
   }
 
   if (page === 'about') {
@@ -163,6 +245,7 @@ export default function Home() {
             <nav className="nav-links">
               <button className="nav-link" onClick={() => setPage('tool')}>tool</button>
               <button className="nav-link active">about</button>
+              <ConnectButton />
             </nav>
           </div>
         </header>
@@ -193,11 +276,11 @@ export default function Home() {
             <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>How it works</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
-                ['1', 'Set your GitHub org and YouTube channel ID in the sidebar'],
-                ['2', 'Run a gap scan — CoverageKit compares your repos against your videos'],
-                ['3', 'Pick an uncovered or stale repo from the gap report'],
-                ['4', 'Configure your tone, disclaimers, and options'],
-                ['5', 'Generate — get your NotebookLM doc, YouTube description, and thumbnail prompt'],
+                ['1', 'Connect your wallet'],
+                ['2', 'Set your GitHub org and YouTube channel'],
+                ['3', 'Run a gap scan — CoverageKit compares your repos against your videos'],
+                ['4', 'Pick an uncovered or stale repo'],
+                ['5', 'Configure tone, disclaimers, and options then generate'],
               ].map(([num, text]) => (
                 <div key={num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                   <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 13, minWidth: 16 }}>{num}</span>
@@ -210,7 +293,7 @@ export default function Home() {
           <div style={{ marginBottom: 40 }}>
             <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Pricing</h2>
             <p style={{ color: 'var(--text-muted)', lineHeight: 1.8 }}>
-              First generation is free. After that, $0.10 per generation paid in USDC on Base. A portion of each payment is automatically swapped to CLAWD and burned, reducing supply.
+              First scan and first generation are free. After that, $0.10 in USDC on Base per action. A portion of each payment is automatically swapped to CLAWD and burned, reducing supply.
             </p>
           </div>
 
@@ -223,19 +306,12 @@ export default function Home() {
           }}>
             <p style={{ marginBottom: 8 }}>
               The buy-and-burn mechanic uses the{' '}
-              <a
-                href="https://github.com/clawdbotatg/receiver-buy-and-burn"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
-              >
+              <a href="https://github.com/clawdbotatg/receiver-buy-and-burn" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
                 receiver-buy-and-burn contract
               </a>
-              {' '}built by clawdbotatg — a permissionless contract that receives USDC, swaps to CLAWD via Uniswap V3, and burns to the dead address. CoverageKit uses it with permission under its MIT license.
+              {' '}built by clawdbotatg — a permissionless contract that receives USDC, swaps to CLAWD via Uniswap V3, and burns to the dead address.
             </p>
-            <p>
-              Built by an independent community member. Not affiliated with or endorsed by clawdbotatg or any other project mentioned.
-            </p>
+            <p>Built by an independent community member. Not affiliated with or endorsed by clawdbotatg or any other project mentioned.</p>
           </div>
         </div>
       </main>
@@ -253,6 +329,8 @@ export default function Home() {
           <nav className="nav-links">
             <button className="nav-link active">tool</button>
             <button className="nav-link" onClick={() => setPage('about')}>about</button>
+            {paying && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>processing payment...</span>}
+            <ConnectButton />
           </nav>
         </div>
       </header>
@@ -260,9 +338,7 @@ export default function Home() {
       <div className="layout">
         <aside className="sidebar">
           <div className="panel">
-            <div className="panel-header">
-              <span>config</span>
-            </div>
+            <div className="panel-header"><span>config</span></div>
             <ConfigPanel org={org} channelId={channelId} onSave={saveConfig} />
           </div>
 
@@ -286,10 +362,8 @@ export default function Home() {
               />
             ) : (
               <div className="empty">
-                {!org || !channelId
-                  ? 'set your config above to get started'
-                  : scanning
-                  ? 'scanning...'
+                {!org || !channelId ? 'set your config above to get started'
+                  : scanning ? 'scanning...'
                   : 'run a scan to find uncovered repos'}
               </div>
             )}
@@ -298,7 +372,6 @@ export default function Home() {
 
         <div className="content">
           {error && <div className="error">{error}</div>}
-
           <GeneratePanel
             selectedRepo={selectedRepo}
             org={org}
@@ -306,7 +379,6 @@ export default function Home() {
             onGenerate={generate}
             generating={generating}
           />
-
           {output && (
             <OutputPanel
               notebookDoc={output.notebookDoc}
