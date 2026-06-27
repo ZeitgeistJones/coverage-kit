@@ -16,9 +16,10 @@ type Props = {
     includeThumbnail: boolean
   }) => void
   generating: boolean
+  isConnected: boolean
 }
 
-export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGenerate, generating }: Props) {
+export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGenerate, generating, isConnected }: Props) {
   const [styleMode, setStyleMode] = useState<'preset' | 'custom'>('preset')
   const [selectedStyle, setSelectedStyle] = useState('chill bro')
   const [customStyle, setCustomStyle] = useState('')
@@ -71,6 +72,8 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
     marginBottom: 6,
   }
 
+  const isDisabled = generating || !selectedRepo.trim() || !org.trim() || !isConnected
+
   return (
     <div style={{
       background: 'var(--surface)',
@@ -103,7 +106,6 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
         />
       </div>
 
-      {/* Style Bible */}
       <div style={{ marginBottom: 14 }}>
         <label style={labelStyle}>tone / style</label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -152,7 +154,6 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
         )}
       </div>
 
-      {/* Disclaimers */}
       <div style={{ marginBottom: 14 }}>
         <label style={labelStyle}>disclaimers <span style={{ color: 'var(--text-dim)' }}>(stack as many as you want)</span></label>
         <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6, marginBottom: 8 }}>
@@ -176,7 +177,6 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
         />
       </div>
 
-      {/* Toggles */}
       <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10, marginBottom: 16 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
           <input
@@ -185,9 +185,7 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
             onChange={e => setIncludeThumbnail(e.target.checked)}
             style={{ accentColor: 'var(--accent)', width: 13, height: 13 }}
           />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            generate thumbnail prompt
-          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>generate thumbnail prompt</span>
         </label>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
@@ -217,7 +215,7 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
 
       <button
         onClick={handleGenerate}
-        disabled={generating || !selectedRepo.trim() || !org.trim()}
+        disabled={isDisabled}
         style={{
           width: '100%',
           background: generating ? 'var(--accent-dim)' : 'var(--accent)',
@@ -227,12 +225,12 @@ export default function GeneratePanel({ selectedRepo, org, onRepoChange, onGener
           padding: '10px',
           fontSize: 13,
           fontWeight: 600,
-          cursor: generating || !selectedRepo.trim() || !org.trim() ? 'not-allowed' : 'pointer',
-          opacity: !selectedRepo.trim() || !org.trim() ? 0.4 : 1,
+          cursor: isDisabled ? 'not-allowed' : 'pointer',
+          opacity: isDisabled ? 0.4 : 1,
           transition: 'opacity 0.15s',
         }}
       >
-        {generating ? 'generating...' : '⚡ generate'}
+        {!isConnected ? 'connect wallet to generate' : generating ? 'generating...' : '⚡ generate'}
       </button>
     </div>
   )
