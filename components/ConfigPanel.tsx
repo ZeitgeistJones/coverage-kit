@@ -52,16 +52,16 @@ export default function ConfigPanel({ org, channelId, onSave }: Props) {
       </div>
       <div style={{ marginBottom: 12 }}>
         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-          youtube channel id
+          youtube channel
         </label>
         <input
           value={localChannelId}
           onChange={e => setLocalChannelId(e.target.value)}
-          placeholder="e.g. UCrYxeMAfEE3zWPx3D8euq8g"
+          placeholder="e.g. @ClawdExplains or youtube.com/@ClawdExplains"
           style={inputStyle}
         />
         <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
-          find your channel ID at studio.youtube.com → Settings → Channel → Basic info
+          paste the channel URL or @handle
         </div>
       </div>
       <button
