@@ -90,7 +90,7 @@ export default function Home() {
     localStorage.setItem('coveragekit-config', JSON.stringify({ org: newOrg, channelId: newChannelId }))
   }
 
-  async function payForAction(): Promise<boolean> {
+  async function payForAction(action: string): Promise<boolean> {
     if (!walletClient || !address) return false
     setPaying(true)
     try {
@@ -105,7 +105,7 @@ export default function Home() {
       await fetch('/api/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet: address, txHash: hash }),
+        body: JSON.stringify({ wallet: address, txHash: hash, action }),
       })
       await fetchUsage()
       return true
@@ -121,7 +121,7 @@ export default function Home() {
     if (!org || !channelId) { setError('Set your config first'); return }
 
     if (scanCount >= 1) {
-      const paid = await payForAction()
+      const paid = await payForAction('scan')
       if (!paid) return
     }
 
@@ -170,7 +170,7 @@ export default function Home() {
     includeThumbnail: boolean
   }) {
     if (genCount >= 1) {
-      const paid = await payForAction()
+      const paid = await payForAction('generate')
       if (!paid) return
     }
 
@@ -207,31 +207,6 @@ export default function Home() {
       setError(e.message || 'Generation failed')
     }
     setGenerating(false)
-  }
-
-  if (!isConnected) {
-    return (
-      <main className="main">
-        <header className="header">
-          <div className="header-inner">
-            <div className="header-left">
-              <span className="logo">📹 CoverageKit</span>
-              <span className="tagline">gap analysis → notebooklm doc → youtube description</span>
-            </div>
-          </div>
-        </header>
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40,
-        }}>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Connect your wallet to get started</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-            First scan and generation are free. $0.10 USDC per action after that.
-          </div>
-          <ConnectButton />
-        </div>
-      </main>
-    )
   }
 
   if (page === 'about') {
@@ -346,8 +321,12 @@ export default function Home() {
             <div className="panel-header">
               <span>coverage gaps</span>
               {!scannedAt && org && channelId && (
-                <button onClick={() => runScan()} disabled={scanning} className="btn">
-                  {scanning ? 'scanning...' : 'scan'}
+                <button
+                  onClick={() => runScan()}
+                  disabled={scanning || !isConnected}
+                  className="btn"
+                >
+                  {!isConnected ? 'connect wallet' : scanning ? 'scanning...' : 'scan'}
                 </button>
               )}
             </div>
@@ -363,6 +342,7 @@ export default function Home() {
             ) : (
               <div className="empty">
                 {!org || !channelId ? 'set your config above to get started'
+                  : !isConnected ? 'connect your wallet to scan'
                   : scanning ? 'scanning...'
                   : 'run a scan to find uncovered repos'}
               </div>
@@ -378,6 +358,7 @@ export default function Home() {
             onRepoChange={setSelectedRepo}
             onGenerate={generate}
             generating={generating}
+            isConnected={isConnected}
           />
           {output && (
             <OutputPanel
