@@ -4,15 +4,14 @@ import Anthropic from '@anthropic-ai/sdk'
 const anthropic = new Anthropic()
 
 function clean(str: string): string {
-  return (str || '').replace(/[^\x20-\x7E]/g, '').trim().slice(0, 200)
+  return (str || '').replace(/[^\x20-\x7E]/g, '').trim().slice(0, 100)
 }
 
 function extractJSON(text: string): any {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start === -1 || end === -1) throw new Error('No JSON found in response')
-  const jsonStr = text.slice(start, end + 1)
-  return JSON.parse(jsonStr)
+  return JSON.parse(text.slice(start, end + 1))
 }
 
 export async function POST(req: Request) {
@@ -37,11 +36,12 @@ ${slimVideos}
 
 For each repo classify as uncovered, stale (repo pushed 30+ days after video), or covered. Match loosely on repo name appearing in video title.
 
-Return ONLY valid JSON with no markdown, no backticks, no explanation: {"gaps":[{"repoName":"name","status":"uncovered","matchedVideo":null,"repoLastPushed":"ISO date","priority":"high"}]}`
+Return ONLY a raw JSON object, no markdown, no backticks, no explanation whatsoever:
+{"gaps":[{"repoName":"string","status":"uncovered|stale|covered","matchedVideo":null,"repoLastPushed":"ISO date","priority":"high|medium|low"}]}`
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{ role: 'user', content: prompt }],
     })
 
