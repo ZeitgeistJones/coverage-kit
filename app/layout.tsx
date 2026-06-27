@@ -1,15 +1,38 @@
-import type { Metadata } from 'next'
+'use client'
+
+import { ReactNode } from 'react'
+import { WagmiProvider, createConfig, http } from 'wagmi'
+import { base } from 'wagmi/chains'
+import { RainbowKitProvider, getDefaultWallets } from '@rainbow-me/rainbowkit'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import '@rainbow-me/rainbowkit/styles.css'
 import './globals.css'
 
-export const metadata: Metadata = {
-  title: 'CoverageKit',
-  description: 'Find GitHub coverage gaps and generate video assets for your YouTube channel.',
-}
+const { connectors } = getDefaultWallets({
+  appName: 'CoverageKit',
+  projectId: 'coveragekit',
+})
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+const config = createConfig({
+  chains: [base],
+  connectors,
+  transports: { [base.id]: http() },
+})
+
+const queryClient = new QueryClient()
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <WagmiProvider config={config}>
+          <QueryClientProvider client={queryClient}>
+            <RainbowKitProvider>
+              {children}
+            </RainbowKitProvider>
+          </QueryClientProvider>
+        </WagmiProvider>
+      </body>
     </html>
   )
 }
