@@ -4,11 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 const anthropic = new Anthropic()
 
 function clean(str: string): string {
-  return (str || '')
-    .replace(/[\u{D800}-\u{DFFF}]/gu, '')
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
-    .replace(/[\u{10000}-\u{10FFFF}]/gu, '')
-    .slice(0, 300)
+  return (str || '').replace(/[^\x20-\x7E]/g, '').trim().slice(0, 200)
 }
 
 export async function POST(req: Request) {
@@ -20,7 +16,7 @@ export async function POST(req: Request) {
       .join('\n')
 
     const slimVideos = videos
-      .map((v: any) => `- "${clean(v.title)}" | ${clean(v.publishedAt)} | ${clean((v.description || '').slice(0, 100))}`)
+      .map((v: any) => `- "${clean(v.title)}" | ${clean(v.publishedAt)}`)
       .join('\n')
 
     const prompt = `Analyze coverage gaps between a GitHub org's repos and a YouTube channel's videos.
@@ -31,7 +27,7 @@ ${slimRepos}
 VIDEOS:
 ${slimVideos}
 
-For each repo classify as uncovered, stale (repo pushed 30+ days after video), or covered. Match loosely on name in title or description.
+For each repo classify as uncovered, stale (repo pushed 30+ days after video), or covered. Match loosely on repo name appearing in video title.
 
 Return ONLY valid JSON: {"gaps":[{"repoName":"name","status":"uncovered","matchedVideo":null,"repoLastPushed":"ISO date","priority":"high"}]}`
 
@@ -42,8 +38,7 @@ Return ONLY valid JSON: {"gaps":[{"repoName":"name","status":"uncovered","matche
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    const cleaned = text.replace(/```json|```/g, '').trim()
-    const result = JSON.parse(cleaned)
+    const result = JSON.parse(text.replace(/```json|```/g, '').trim())
 
     return NextResponse.json(result)
   } catch (err: any) {
